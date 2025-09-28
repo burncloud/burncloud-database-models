@@ -21,8 +21,8 @@ tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1"
 
 # Local dependencies
-burncloud-service-models = { path = "../burncloud-service-models" }
-burncloud-database-core = { path = "../burncloud-database-core" }
+burncloud-service-models = "0.1.0"
+burncloud-database-core = "0.1.0"
 
 [features]
 default = ["postgres"]
