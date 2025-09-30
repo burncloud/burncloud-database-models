@@ -17,7 +17,5 @@ pub use models_repository::*;
 pub use models_service::*;
 pub use models_converters::*;
 
-// 重新导出相关类型
-pub use burncloud_service_models;
-pub use burncloud_database_core;
-pub use burncloud_database_client;
+// Re-export core database types
+pub use burncloud_database_core::{Database, DatabaseError};

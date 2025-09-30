@@ -1,265 +1,404 @@
 use crate::models_table::{ModelsTable, InstalledModelsTable};
-use burncloud_service_models::{Model, InstalledModel, ModelType, ModelSize, ModelStatus};
 use serde_json;
 use std::collections::HashMap;
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
-/// 将 service Model 转换为数据库 ModelsTable
-pub fn service_model_to_db(service_model: &Model) -> ModelsTable {
-    ModelsTable {
-        id: service_model.id,
-        name: service_model.name.clone(),
-        display_name: service_model.display_name.clone(),
-        description: service_model.description.clone(),
-        version: service_model.version.clone(),
-        model_type: model_type_to_string(&service_model.model_type),
-        size_category: model_size_to_string(&service_model.size_category),
-        file_size: service_model.file_size as i64,
-        provider: service_model.provider.clone(),
-        license: service_model.license.clone(),
-        tags: serde_json::to_string(&service_model.tags).unwrap_or_else(|_| "[]".to_string()),
-        languages: serde_json::to_string(&service_model.languages).unwrap_or_else(|_| "[]".to_string()),
-        file_path: service_model.file_path.clone(),
-        checksum: service_model.checksum.clone(),
-        download_url: service_model.download_url.clone(),
-        config: serde_json::to_string(&service_model.config).unwrap_or_else(|_| "{}".to_string()),
-        rating: service_model.rating,
-        download_count: service_model.download_count as i64,
-        is_official: service_model.is_official,
-        created_at: service_model.created_at,
-        updated_at: service_model.updated_at,
+// Basic types that are shared across layers without dependencies
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BasicModelType {
+    Chat,
+    Code,
+    Text,
+    Embedding,
+    Image,
+    Audio,
+    Video,
+    Multimodal,
+    Other,
+}
+
+impl std::str::FromStr for BasicModelType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Chat" => Ok(BasicModelType::Chat),
+            "Code" => Ok(BasicModelType::Code),
+            "Text" => Ok(BasicModelType::Text),
+            "Embedding" => Ok(BasicModelType::Embedding),
+            "Image" => Ok(BasicModelType::Image),
+            "Audio" => Ok(BasicModelType::Audio),
+            "Video" => Ok(BasicModelType::Video),
+            "Multimodal" => Ok(BasicModelType::Multimodal),
+            "Other" => Ok(BasicModelType::Other),
+            _ => Err(format!("Invalid model type: {}", s)),
+        }
     }
 }
 
-/// 将数据库 ModelsTable 转换为 service Model
-pub fn db_model_to_service(db_model: &ModelsTable) -> Result<Model, ConversionError> {
-    let tags: Vec<String> = serde_json::from_str(&db_model.tags)
-        .map_err(|e| ConversionError::JsonParseError(format!("Failed to parse tags: {}", e)))?;
-
-    let languages: Vec<String> = serde_json::from_str(&db_model.languages)
-        .map_err(|e| ConversionError::JsonParseError(format!("Failed to parse languages: {}", e)))?;
-
-    let config: HashMap<String, serde_json::Value> = serde_json::from_str(&db_model.config)
-        .map_err(|e| ConversionError::JsonParseError(format!("Failed to parse config: {}", e)))?;
-
-    let model_type = string_to_model_type(&db_model.model_type)?;
-    let size_category = string_to_model_size(&db_model.size_category)?;
-
-    Ok(Model {
-        id: db_model.id,
-        name: db_model.name.clone(),
-        display_name: db_model.display_name.clone(),
-        description: db_model.description.clone(),
-        version: db_model.version.clone(),
-        model_type,
-        size_category,
-        file_size: db_model.file_size as u64,
-        provider: db_model.provider.clone(),
-        license: db_model.license.clone(),
-        tags,
-        languages,
-        created_at: db_model.created_at,
-        updated_at: db_model.updated_at,
-        file_path: db_model.file_path.clone(),
-        checksum: db_model.checksum.clone(),
-        download_url: db_model.download_url.clone(),
-        config,
-        rating: db_model.rating,
-        download_count: db_model.download_count as u64,
-        is_official: db_model.is_official,
-    })
+impl std::fmt::Display for BasicModelType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasicModelType::Chat => write!(f, "Chat"),
+            BasicModelType::Code => write!(f, "Code"),
+            BasicModelType::Text => write!(f, "Text"),
+            BasicModelType::Embedding => write!(f, "Embedding"),
+            BasicModelType::Image => write!(f, "Image"),
+            BasicModelType::Audio => write!(f, "Audio"),
+            BasicModelType::Video => write!(f, "Video"),
+            BasicModelType::Multimodal => write!(f, "Multimodal"),
+            BasicModelType::Other => write!(f, "Other"),
+        }
+    }
 }
 
-/// 将 service InstalledModel 转换为数据库 InstalledModelsTable
-pub fn service_installed_model_to_db(service_installed: &InstalledModel) -> (ModelsTable, InstalledModelsTable) {
-    let db_model = service_model_to_db(&service_installed.model);
-
-    let db_installed = InstalledModelsTable {
-        id: uuid::Uuid::new_v4(), // 生成新的安装记录ID
-        model_id: service_installed.model.id,
-        install_path: service_installed.install_path.clone(),
-        installed_at: service_installed.installed_at,
-        status: model_status_to_string(&service_installed.status),
-        port: service_installed.port.map(|p| p as i32),
-        process_id: service_installed.process_id.map(|p| p as i32),
-        last_used: service_installed.last_used,
-        usage_count: service_installed.usage_count as i64,
-        created_at: service_installed.installed_at,
-        updated_at: service_installed.installed_at,
-    };
-
-    (db_model, db_installed)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BasicSizeCategory {
+    Small,
+    Medium,
+    Large,
+    XLarge,
 }
 
-/// 将数据库记录转换为 service InstalledModel
-pub fn db_installed_model_to_service(
-    db_model: &ModelsTable,
-    db_installed: &InstalledModelsTable,
-) -> Result<InstalledModel, ConversionError> {
-    let service_model = db_model_to_service(db_model)?;
-    let status = string_to_model_status(&db_installed.status)?;
+impl std::fmt::Display for BasicSizeCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasicSizeCategory::Small => write!(f, "Small"),
+            BasicSizeCategory::Medium => write!(f, "Medium"),
+            BasicSizeCategory::Large => write!(f, "Large"),
+            BasicSizeCategory::XLarge => write!(f, "XLarge"),
+        }
+    }
+}
 
-    Ok(InstalledModel {
-        model: service_model,
-        install_path: db_installed.install_path.clone(),
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BasicModelStatus {
+    Running,
+    Starting,
+    Stopping,
+    Stopped,
+    Error,
+}
+
+impl std::str::FromStr for BasicModelStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Running" => Ok(BasicModelStatus::Running),
+            "Starting" => Ok(BasicModelStatus::Starting),
+            "Stopping" => Ok(BasicModelStatus::Stopping),
+            "Stopped" => Ok(BasicModelStatus::Stopped),
+            "Error" => Ok(BasicModelStatus::Error),
+            _ => Err(format!("Invalid model status: {}", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for BasicModelStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BasicModelStatus::Running => write!(f, "Running"),
+            BasicModelStatus::Starting => write!(f, "Starting"),
+            BasicModelStatus::Stopping => write!(f, "Stopping"),
+            BasicModelStatus::Stopped => write!(f, "Stopped"),
+            BasicModelStatus::Error => write!(f, "Error"),
+        }
+    }
+}
+
+/// Basic model structure without service layer dependencies
+#[derive(Debug, Clone)]
+pub struct BasicModel {
+    pub id: Uuid,
+    pub name: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub version: String,
+    pub model_type: BasicModelType,
+    pub size_category: BasicSizeCategory,
+    pub file_size: u64,
+    pub provider: String,
+    pub license: Option<String>,
+    pub tags: Vec<String>,
+    pub languages: Vec<String>,
+    pub file_path: Option<String>,
+    pub checksum: Option<String>,
+    pub download_url: Option<String>,
+    pub config: HashMap<String, serde_json::Value>,
+    pub rating: Option<f32>,
+    pub download_count: u64,
+    pub is_official: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Basic installed model structure
+#[derive(Debug, Clone)]
+pub struct BasicInstalledModel {
+    pub id: Uuid,
+    pub model: BasicModel,
+    pub install_path: String,
+    pub installed_at: DateTime<Utc>,
+    pub status: BasicModelStatus,
+    pub port: Option<u32>,
+    pub process_id: Option<u32>,
+    pub last_used: Option<DateTime<Utc>>,
+    pub usage_count: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Convert BasicModel to database ModelsTable
+impl TryFrom<BasicModel> for ModelsTable {
+    type Error = String;
+
+    fn try_from(basic_model: BasicModel) -> Result<Self, Self::Error> {
+        Ok(ModelsTable {
+            id: basic_model.id,
+            name: basic_model.name,
+            display_name: basic_model.display_name,
+            description: basic_model.description,
+            version: basic_model.version,
+            model_type: basic_model.model_type.to_string(),
+            size_category: basic_model.size_category.to_string(),
+            file_size: basic_model.file_size as i64,
+            provider: basic_model.provider,
+            license: basic_model.license,
+            tags: serde_json::to_string(&basic_model.tags)
+                .map_err(|e| format!("Failed to serialize tags: {}", e))?,
+            languages: serde_json::to_string(&basic_model.languages)
+                .map_err(|e| format!("Failed to serialize languages: {}", e))?,
+            file_path: basic_model.file_path,
+            checksum: basic_model.checksum,
+            download_url: basic_model.download_url,
+            config: serde_json::to_string(&basic_model.config)
+                .map_err(|e| format!("Failed to serialize config: {}", e))?,
+            rating: basic_model.rating,
+            download_count: basic_model.download_count as i64,
+            is_official: basic_model.is_official,
+            created_at: basic_model.created_at,
+            updated_at: basic_model.updated_at,
+        })
+    }
+}
+
+/// Convert database ModelsTable to BasicModel
+impl TryFrom<ModelsTable> for BasicModel {
+    type Error = String;
+
+    fn try_from(db_model: ModelsTable) -> Result<Self, Self::Error> {
+        let tags: Vec<String> = serde_json::from_str(&db_model.tags)
+            .map_err(|e| format!("Failed to parse tags: {}", e))?;
+
+        let languages: Vec<String> = serde_json::from_str(&db_model.languages)
+            .map_err(|e| format!("Failed to parse languages: {}", e))?;
+
+        let config: HashMap<String, serde_json::Value> = serde_json::from_str(&db_model.config)
+            .map_err(|e| format!("Failed to parse config: {}", e))?;
+
+        let model_type = db_model.model_type.parse::<BasicModelType>()
+            .map_err(|e| format!("Invalid model type: {}", e))?;
+
+        let size_category = match db_model.size_category.as_str() {
+            "Small" => BasicSizeCategory::Small,
+            "Medium" => BasicSizeCategory::Medium,
+            "Large" => BasicSizeCategory::Large,
+            "XLarge" => BasicSizeCategory::XLarge,
+            _ => return Err(format!("Invalid size category: {}", db_model.size_category)),
+        };
+
+        Ok(BasicModel {
+            id: db_model.id,
+            name: db_model.name,
+            display_name: db_model.display_name,
+            description: db_model.description,
+            version: db_model.version,
+            model_type,
+            size_category,
+            file_size: db_model.file_size as u64,
+            provider: db_model.provider,
+            license: db_model.license,
+            tags,
+            languages,
+            file_path: db_model.file_path,
+            checksum: db_model.checksum,
+            download_url: db_model.download_url,
+            config,
+            rating: db_model.rating,
+            download_count: db_model.download_count as u64,
+            is_official: db_model.is_official,
+            created_at: db_model.created_at,
+            updated_at: db_model.updated_at,
+        })
+    }
+}
+
+/// Convert BasicInstalledModel to database InstalledModelsTable
+impl TryFrom<BasicInstalledModel> for InstalledModelsTable {
+    type Error = String;
+
+    fn try_from(basic_installed: BasicInstalledModel) -> Result<Self, Self::Error> {
+        Ok(InstalledModelsTable {
+            id: basic_installed.id,
+            model_id: basic_installed.model.id,
+            install_path: basic_installed.install_path,
+            installed_at: basic_installed.installed_at,
+            status: basic_installed.status.to_string(),
+            port: basic_installed.port.map(|p| p as i32),
+            process_id: basic_installed.process_id.map(|p| p as i32),
+            last_used: basic_installed.last_used,
+            usage_count: basic_installed.usage_count as i64,
+            created_at: basic_installed.created_at,
+            updated_at: basic_installed.updated_at,
+        })
+    }
+}
+
+/// Convert database records to BasicInstalledModel
+pub fn db_to_basic_installed_model((db_model, db_installed): (ModelsTable, InstalledModelsTable)) -> Result<BasicInstalledModel, String> {
+    let basic_model = BasicModel::try_from(db_model)?;
+
+    let status = db_installed.status.parse::<BasicModelStatus>()
+        .map_err(|e| format!("Invalid model status: {}", e))?;
+
+    Ok(BasicInstalledModel {
+        id: db_installed.id,
+        model: basic_model,
+        install_path: db_installed.install_path,
         installed_at: db_installed.installed_at,
         status,
-        port: db_installed.port.map(|p| p as u16),
+        port: db_installed.port.map(|p| p as u32),
         process_id: db_installed.process_id.map(|p| p as u32),
         last_used: db_installed.last_used,
         usage_count: db_installed.usage_count as u64,
+        created_at: db_installed.created_at,
+        updated_at: db_installed.updated_at,
     })
 }
 
-/// ModelType 转换函数
-fn model_type_to_string(model_type: &ModelType) -> String {
-    match model_type {
-        ModelType::Chat => "Chat".to_string(),
-        ModelType::Code => "Code".to_string(),
-        ModelType::Text => "Text".to_string(),
-        ModelType::Embedding => "Embedding".to_string(),
-        ModelType::Multimodal => "Multimodal".to_string(),
-        ModelType::ImageGeneration => "ImageGeneration".to_string(),
-        ModelType::Speech => "Speech".to_string(),
+/// Convert size in bytes to size category
+pub fn file_size_to_category(size_bytes: u64) -> BasicSizeCategory {
+    if size_bytes < 3_000_000_000 {       // 3GB
+        BasicSizeCategory::Small
+    } else if size_bytes < 10_000_000_000 { // 10GB
+        BasicSizeCategory::Medium
+    } else if size_bytes < 25_000_000_000 { // 25GB
+        BasicSizeCategory::Large
+    } else {
+        BasicSizeCategory::XLarge
     }
 }
 
-fn string_to_model_type(s: &str) -> Result<ModelType, ConversionError> {
-    match s {
-        "Chat" => Ok(ModelType::Chat),
-        "Code" => Ok(ModelType::Code),
-        "Text" => Ok(ModelType::Text),
-        "Embedding" => Ok(ModelType::Embedding),
-        "Multimodal" => Ok(ModelType::Multimodal),
-        "ImageGeneration" => Ok(ModelType::ImageGeneration),
-        "Speech" => Ok(ModelType::Speech),
-        _ => Err(ConversionError::InvalidModelType(s.to_string())),
+/// Convert size category to approximate bytes (for display purposes)
+pub fn category_to_approximate_size(category: BasicSizeCategory) -> (u64, &'static str) {
+    match category {
+        BasicSizeCategory::Small => (1_500_000_000, "~1.5GB"),    // 1.5GB
+        BasicSizeCategory::Medium => (5_500_000_000, "~5.5GB"),   // 5.5GB
+        BasicSizeCategory::Large => (19_000_000_000, "~19GB"),    // 19GB
+        BasicSizeCategory::XLarge => (50_000_000_000, "~50GB+"),  // 50GB+
     }
-}
-
-/// ModelSize 转换函数
-fn model_size_to_string(model_size: &ModelSize) -> String {
-    match model_size {
-        ModelSize::Small => "Small".to_string(),
-        ModelSize::Medium => "Medium".to_string(),
-        ModelSize::Large => "Large".to_string(),
-        ModelSize::XLarge => "XLarge".to_string(),
-    }
-}
-
-fn string_to_model_size(s: &str) -> Result<ModelSize, ConversionError> {
-    match s {
-        "Small" => Ok(ModelSize::Small),
-        "Medium" => Ok(ModelSize::Medium),
-        "Large" => Ok(ModelSize::Large),
-        "XLarge" => Ok(ModelSize::XLarge),
-        _ => Err(ConversionError::InvalidModelSize(s.to_string())),
-    }
-}
-
-/// ModelStatus 转换函数
-fn model_status_to_string(model_status: &ModelStatus) -> String {
-    match model_status {
-        ModelStatus::Running => "Running".to_string(),
-        ModelStatus::Stopped => "Stopped".to_string(),
-        ModelStatus::Starting => "Starting".to_string(),
-        ModelStatus::Stopping => "Stopping".to_string(),
-        ModelStatus::Error => "Error".to_string(),
-        ModelStatus::Downloading => "Downloading".to_string(),
-        ModelStatus::Installing => "Installing".to_string(),
-    }
-}
-
-fn string_to_model_status(s: &str) -> Result<ModelStatus, ConversionError> {
-    match s {
-        "Running" => Ok(ModelStatus::Running),
-        "Stopped" => Ok(ModelStatus::Stopped),
-        "Starting" => Ok(ModelStatus::Starting),
-        "Stopping" => Ok(ModelStatus::Stopping),
-        "Error" => Ok(ModelStatus::Error),
-        "Downloading" => Ok(ModelStatus::Downloading),
-        "Installing" => Ok(ModelStatus::Installing),
-        _ => Err(ConversionError::InvalidModelStatus(s.to_string())),
-    }
-}
-
-/// 转换错误类型
-#[derive(Debug, thiserror::Error)]
-pub enum ConversionError {
-    #[error("JSON parse error: {0}")]
-    JsonParseError(String),
-
-    #[error("Invalid model type: {0}")]
-    InvalidModelType(String),
-
-    #[error("Invalid model size: {0}")]
-    InvalidModelSize(String),
-
-    #[error("Invalid model status: {0}")]
-    InvalidModelStatus(String),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burncloud_service_models::{Model, ModelType, ModelSize};
 
     #[test]
-    fn test_service_model_to_db_conversion() {
-        let service_model = Model::new(
-            "test-model".to_string(),
-            "Test Model".to_string(),
-            "1.0.0".to_string(),
-            ModelType::Chat,
-            "Test Provider".to_string(),
-            1024 * 1024 * 1024, // 1GB
-        );
+    fn test_basic_model_to_db_conversion() {
+        let now = Utc::now();
+        let mut config = HashMap::new();
+        config.insert("temperature".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(0.7).unwrap()));
 
-        let db_model = service_model_to_db(&service_model);
+        let basic_model = BasicModel {
+            id: Uuid::new_v4(),
+            name: "test-model".to_string(),
+            display_name: "Test Model".to_string(),
+            description: Some("A test model".to_string()),
+            version: "1.0.0".to_string(),
+            model_type: BasicModelType::Chat,
+            size_category: BasicSizeCategory::Small,
+            file_size: 1024 * 1024 * 1024, // 1GB
+            provider: "Test Provider".to_string(),
+            license: Some("MIT".to_string()),
+            tags: vec!["ai".to_string(), "chat".to_string()],
+            languages: vec!["en".to_string(), "zh".to_string()],
+            file_path: Some("/path/to/model".to_string()),
+            checksum: Some("abc123".to_string()),
+            download_url: Some("https://example.com/model".to_string()),
+            config,
+            rating: Some(4.5),
+            download_count: 100,
+            is_official: true,
+            created_at: now,
+            updated_at: now,
+        };
+
+        let db_model: ModelsTable = basic_model.clone().try_into().unwrap();
 
         assert_eq!(db_model.name, "test-model");
         assert_eq!(db_model.display_name, "Test Model");
         assert_eq!(db_model.model_type, "Chat");
         assert_eq!(db_model.size_category, "Small");
         assert_eq!(db_model.file_size, 1024 * 1024 * 1024);
+        assert_eq!(db_model.is_official, true);
     }
 
     #[test]
-    fn test_db_model_to_service_conversion() {
-        let mut db_model = ModelsTable::new(
-            "test-model".to_string(),
-            "Test Model".to_string(),
-            "1.0.0".to_string(),
-            "Chat".to_string(),
-            "Test Provider".to_string(),
-            1024 * 1024 * 1024,
-        );
-        db_model.tags = r#"["ai", "chat"]"#.to_string();
-        db_model.languages = r#"["en", "zh"]"#.to_string();
-        db_model.config = r#"{"temperature": 0.7}"#.to_string();
+    fn test_db_model_to_basic_conversion() {
+        let now = Utc::now();
+        let db_model = ModelsTable {
+            id: Uuid::new_v4(),
+            name: "test-model".to_string(),
+            display_name: "Test Model".to_string(),
+            description: Some("A test model".to_string()),
+            version: "1.0.0".to_string(),
+            model_type: "Chat".to_string(),
+            size_category: "Small".to_string(),
+            file_size: 1024 * 1024 * 1024,
+            provider: "Test Provider".to_string(),
+            license: Some("MIT".to_string()),
+            tags: r#"["ai", "chat"]"#.to_string(),
+            languages: r#"["en", "zh"]"#.to_string(),
+            file_path: Some("/path/to/model".to_string()),
+            checksum: Some("abc123".to_string()),
+            download_url: Some("https://example.com/model".to_string()),
+            config: r#"{"temperature": 0.7}"#.to_string(),
+            rating: Some(4.5),
+            download_count: 100,
+            is_official: true,
+            created_at: now,
+            updated_at: now,
+        };
 
-        let service_model = db_model_to_service(&db_model).unwrap();
+        let basic_model: BasicModel = db_model.try_into().unwrap();
 
-        assert_eq!(service_model.name, "test-model");
-        assert_eq!(service_model.display_name, "Test Model");
-        assert_eq!(service_model.model_type, ModelType::Chat);
-        assert_eq!(service_model.size_category, ModelSize::Small);
-        assert_eq!(service_model.tags, vec!["ai", "chat"]);
-        assert_eq!(service_model.languages, vec!["en", "zh"]);
+        assert_eq!(basic_model.name, "test-model");
+        assert_eq!(basic_model.display_name, "Test Model");
+        assert_eq!(basic_model.model_type, BasicModelType::Chat);
+        assert_eq!(basic_model.size_category, BasicSizeCategory::Small);
+        assert_eq!(basic_model.tags, vec!["ai", "chat"]);
+        assert_eq!(basic_model.languages, vec!["en", "zh"]);
+        assert_eq!(basic_model.is_official, true);
     }
 
     #[test]
-    fn test_model_type_conversions() {
-        assert_eq!(model_type_to_string(&ModelType::Chat), "Chat");
-        assert_eq!(string_to_model_type("Chat").unwrap(), ModelType::Chat);
-
-        assert!(string_to_model_type("InvalidType").is_err());
+    fn test_file_size_to_category() {
+        assert_eq!(file_size_to_category(1_000_000_000), BasicSizeCategory::Small);     // 1GB
+        assert_eq!(file_size_to_category(5_000_000_000), BasicSizeCategory::Medium);    // 5GB
+        assert_eq!(file_size_to_category(15_000_000_000), BasicSizeCategory::Large);    // 15GB
+        assert_eq!(file_size_to_category(50_000_000_000), BasicSizeCategory::XLarge);   // 50GB
     }
 
     #[test]
-    fn test_model_size_conversions() {
-        assert_eq!(model_size_to_string(&ModelSize::Large), "Large");
-        assert_eq!(string_to_model_size("Large").unwrap(), ModelSize::Large);
+    fn test_category_to_approximate_size() {
+        let (size, desc) = category_to_approximate_size(BasicSizeCategory::Small);
+        assert_eq!(desc, "~1.5GB");
+        assert!(size > 0);
 
-        assert!(string_to_model_size("InvalidSize").is_err());
+        let (size, desc) = category_to_approximate_size(BasicSizeCategory::XLarge);
+        assert_eq!(desc, "~50GB+");
+        assert!(size > 40_000_000_000);
     }
 }
