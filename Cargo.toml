@@ -21,7 +21,7 @@ tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1"
 
 # Local dependencies
-burncloud-database-core = { path = "../burncloud-database-core" }
+burncloud-database = { path = "../burncloud-database" }
 
 [dev-dependencies]
 tempfile = "3.0"

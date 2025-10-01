@@ -1,5 +1,5 @@
 use crate::models_table::{ModelsTable, InstalledModelsTable, CREATE_MODELS_TABLE_SQL, CREATE_INSTALLED_MODELS_TABLE_SQL};
-use burncloud_database_core::{Database, DatabaseError};
+use burncloud_database::{Database, DatabaseError};
 use std::sync::Arc;
 use uuid::Uuid;
 use chrono::Utc;

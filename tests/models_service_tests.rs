@@ -6,7 +6,7 @@
 use burncloud_database_models::{
     ModelsService, ModelsTable, BasicModel, BasicModelType, BasicSizeCategory
 };
-use burncloud_database_core::{create_in_memory_database};
+use burncloud_database::{create_in_memory_database};
 use std::sync::Arc;
 use uuid::Uuid;
 use chrono::Utc;

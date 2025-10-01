@@ -18,4 +18,4 @@ pub use models_service::*;
 pub use models_converters::*;
 
 // Re-export core database types
-pub use burncloud_database_core::{Database, DatabaseError};
+pub use burncloud_database::{Database, DatabaseError};

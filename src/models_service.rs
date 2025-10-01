@@ -1,5 +1,5 @@
 use crate::{ModelsRepository, DatabaseError};
-use burncloud_database_core::Database;
+use burncloud_database::Database;
 use std::sync::Arc;
 
 /// High-level service for managing models database operations
