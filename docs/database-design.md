@@ -105,20 +105,7 @@ CREATE INDEX idx_models_private ON models(private);
 // 添加模型信息
 async fn add_model(model: &ModelInfo) -> Result<()>
 
-// 更新统计信息
-async fn update_stats(model_id: &str, downloads: i64, likes: i64) -> Result<()>
-
-// 查询模型信息
-async fn get_model(model_id: &str) -> Result<Option<ModelInfo>>
-
-// 按类型列出模型
-async fn list_models_by_pipeline(pipeline_tag: &str) -> Result<Vec<ModelInfo>>
-
-// 搜索模型(按标签)
-async fn search_models_by_tags(tags: Vec<&str>) -> Result<Vec<ModelInfo>>
-
-// 获取热门模型
-async fn get_popular_models(limit: i32) -> Result<Vec<ModelInfo>>
+async fn delete(model_id: &str) -> Result<()>
 ```
 
 ## 数据结构定义
