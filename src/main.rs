@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 创建一个示例模型
     let model = ModelInfo {
-        model_id: "openai-community/gpt3".to_string(),
+        model_id: "openai-community/gpt4".to_string(),
         private: false,
         pipeline_tag: Some("text-generation".to_string()),
         library_name: Some("transformers".to_string()),
@@ -27,6 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         spaces: "[]".to_string(),
         safetensors: "{}".to_string(),
         used_storage: 548000000,
+        filename: Some("model.safetensors".to_string()),
+        size: 548000000,
         created_at: "2024-01-01 10:00:00".to_string(),
         updated_at: "2024-01-01 12:00:00".to_string(),
     };
@@ -36,10 +38,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ 模型添加成功");
 
     // 获取模型
-    if let Some(retrieved_model) = db.get_model("openai-community/gpt2").await? {
+    if let Some(retrieved_model) = db.get_model("openai-community/gpt3").await? {
         println!("📋 获取到模型: {}", retrieved_model.model_id);
         println!("   管道类型: {:?}", retrieved_model.pipeline_tag);
         println!("   下载量: {}", retrieved_model.downloads);
+        println!("   文件名: {:?}", retrieved_model.filename);
+        println!("   文件大小: {} 字节", retrieved_model.size);
     }
 
     // 获取所有模型

@@ -62,6 +62,10 @@ pub struct ModelInfo {
     // 存储信息
     /// 使用的存储空间(字节)
     pub used_storage: i64,
+    /// 文件名
+    pub filename: Option<String>,
+    /// 文件大小(字节)
+    pub size: i64,
 
     // 时间戳
     /// 创建时间
@@ -139,6 +143,8 @@ impl ModelDatabase {
 
                 -- 存储信息
                 used_storage INTEGER DEFAULT 0,
+                filename TEXT,
+                size INTEGER DEFAULT 0,
 
                 -- 时间戳
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -147,6 +153,17 @@ impl ModelDatabase {
         "#;
 
         self.db.execute_query(create_table_sql).await?;
+
+        // 添加新字段 (如果不存在)
+        let migrations = [
+            "ALTER TABLE models ADD COLUMN filename TEXT",
+            "ALTER TABLE models ADD COLUMN size INTEGER DEFAULT 0",
+        ];
+
+        for migration_sql in &migrations {
+            // 忽略已存在列的错误
+            let _ = self.db.execute_query(migration_sql).await;
+        }
 
         // 创建索引
         let indexes = [
@@ -172,11 +189,11 @@ impl ModelDatabase {
                 model_id, private, pipeline_tag, library_name, model_type,
                 downloads, likes, sha, last_modified, gated, disabled,
                 tags, config, widget_data, card_data, transformers_info,
-                siblings, spaces, safetensors, used_storage,
+                siblings, spaces, safetensors, used_storage, filename, size,
                 created_at, updated_at
             ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
+                ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22,
                 COALESCE((SELECT created_at FROM models WHERE model_id = ?1), CURRENT_TIMESTAMP),
                 CURRENT_TIMESTAMP
             )
@@ -203,6 +220,8 @@ impl ModelDatabase {
             model.spaces.clone(),
             model.safetensors.clone(),
             model.used_storage.to_string(),
+            model.filename.clone().unwrap_or_default(),
+            model.size.to_string(),
         ];
 
         self.db.execute_query_with_params(sql, params).await?;

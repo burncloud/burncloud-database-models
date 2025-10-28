@@ -51,3 +51,6 @@
 4. 特殊例子，GGUF多文件读取
 
   https://huggingface.co/huihui-ai/Huihui-Qwen3-VL-30B-A3B-Instruct-abliterated/tree/main/GGUF
+
+
+  filename，size
